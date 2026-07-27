@@ -1,0 +1,4 @@
+node_modules/
+
+# textures/ is deliberately committed: GitHub Pages serves it directly, and
+# the upstream host 403s hotlinking, so the mirror has to travel with the app.

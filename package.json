@@ -1,0 +1,15 @@
+{
+  "name": "solar-system",
+  "version": "1.0.0",
+  "description": "A 3D solar system simulation with real ephemerides, a time slider, and a surface camera you can watch sunrises from",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "verify": "node tools/verify.mjs",
+    "textures": "node tools/fetch-textures.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.169.0"
+  }
+}

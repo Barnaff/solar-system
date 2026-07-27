@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Solar System</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+
+<div id="viewport">
+  <canvas id="canvas"></canvas>
+  <div id="labels"></div>
+  <div id="crosshair" hidden></div>
+</div>
+
+<div id="loading">
+  <div class="loading-inner">
+    <div class="loading-title">Solar System</div>
+    <div class="loading-bar"><div id="loading-fill"></div></div>
+    <div id="loading-text">loading textures</div>
+  </div>
+</div>
+
+<!-- ===================== left: bodies ===================== -->
+<aside id="panel-left" class="panel">
+  <header>
+    <h1>Solar System</h1>
+    <button class="collapse" data-target="panel-left" title="Collapse">&#8592;</button>
+  </header>
+  <div class="panel-body">
+    <div class="field">
+      <input type="search" id="body-search" placeholder="Find a body&hellip;" autocomplete="off">
+    </div>
+    <nav id="body-list"></nav>
+  </div>
+</aside>
+
+<!-- ===================== right: info ===================== -->
+<aside id="panel-right" class="panel">
+  <header>
+    <h2 id="info-name">Sun</h2>
+    <button class="collapse" data-target="panel-right" title="Collapse">&#8594;</button>
+  </header>
+  <div class="panel-body">
+    <p id="info-blurb"></p>
+    <dl id="info-live"></dl>
+    <h3>Physical</h3>
+    <dl id="info-facts"></dl>
+
+    <h3>View</h3>
+    <div class="btn-row">
+      <button id="btn-follow" class="btn">Follow</button>
+      <button id="btn-surface" class="btn">Stand on surface</button>
+    </div>
+
+    <h3>Display</h3>
+    <label class="check"><input type="checkbox" id="opt-orbits" checked> Orbit paths</label>
+    <label class="check"><input type="checkbox" id="opt-labels" checked> Labels</label>
+    <label class="check"><input type="checkbox" id="opt-moons" checked> Moons</label>
+    <label class="check"><input type="checkbox" id="opt-small" checked> Dwarf planets &amp; asteroids</label>
+    <label class="check"><input type="checkbox" id="opt-belt" checked> Asteroid belt</label>
+    <label class="check"><input type="checkbox" id="opt-stars" checked> Star field</label>
+    <label class="check"><input type="checkbox" id="opt-markers" checked> Visibility markers</label>
+    <label class="check"><input type="checkbox" id="opt-flare" checked> Lens flare (surface view)</label>
+
+    <div class="field">
+      <label for="opt-size">Body size <span id="size-val" class="mono">1&times; (true)</span></label>
+      <input type="range" id="opt-size" min="0" max="100" value="0">
+      <small>True scale makes planets sub-pixel from far away; exaggerate to see them.</small>
+    </div>
+    <div class="field">
+      <label for="opt-exposure">Brightness <span id="exposure-val" class="mono">auto</span></label>
+      <input type="range" id="opt-exposure" min="-100" max="60" value="-100">
+      <small>Sunlight really does fall off as 1/r&sup2;. Drag to override.</small>
+    </div>
+  </div>
+</aside>
+
+<!-- ===================== bottom: time ===================== -->
+<div id="timebar">
+  <div class="time-row">
+    <button id="btn-play" class="btn icon" title="Play / pause">&#9654;</button>
+    <button id="btn-now" class="btn" title="Jump to the current instant">Now</button>
+    <div id="clock">
+      <input type="text" id="date-input" class="mono" spellcheck="false">
+      <span id="jd-readout" class="mono dim"></span>
+    </div>
+    <div class="spacer"></div>
+    <label class="inline">Span
+      <select id="span-select">
+        <option value="0.5">&plusmn;12 hours</option>
+        <option value="3.5">&plusmn;3.5 days</option>
+        <option value="15">&plusmn;15 days</option>
+        <option value="182.6" selected>&plusmn;6 months</option>
+        <option value="1826">&plusmn;5 years</option>
+        <option value="18262">&plusmn;50 years</option>
+        <option value="91310">&plusmn;250 years</option>
+      </select>
+    </label>
+    <label class="inline">Rate
+      <select id="rate-select">
+        <option value="1">real time</option>
+        <option value="60">1 min / s</option>
+        <option value="3600" selected>1 hour / s</option>
+        <option value="86400">1 day / s</option>
+        <option value="604800">1 week / s</option>
+        <option value="2592000">1 month / s</option>
+        <option value="31557600">1 year / s</option>
+        <option value="315576000">10 years / s</option>
+      </select>
+    </label>
+    <button id="btn-reverse" class="btn icon" title="Reverse time">&#8630;</button>
+  </div>
+  <input type="range" id="time-slider" min="0" max="10000" value="5000">
+  <div id="time-ticks"></div>
+</div>
+
+<!-- ===================== surface mode HUD ===================== -->
+<div id="surface-hud" hidden>
+  <div class="surface-top">
+    <div class="surface-where">
+      <strong id="surface-body">Earth</strong>
+      <span id="surface-coords" class="mono"></span>
+      <span id="surface-kind"></span>
+    </div>
+    <div class="surface-controls">
+      <label class="inline">Place
+        <select id="surface-preset"></select>
+      </label>
+      <label class="inline">Lat <input type="number" id="surface-lat" step="0.5" min="-90" max="90" class="mono"></label>
+      <label class="inline">Lon <input type="number" id="surface-lon" step="0.5" min="-180" max="360" class="mono"></label>
+      <button id="btn-face-sunrise" class="btn">Face the sunrise</button>
+      <button id="btn-exit-surface" class="btn">Leave surface</button>
+    </div>
+  </div>
+  <div class="surface-bottom">
+    <div class="readout"><span class="k">Local solar time</span><span class="v mono" id="ro-lst">--:--</span></div>
+    <div class="readout"><span class="k">Sun altitude</span><span class="v mono" id="ro-alt">--</span></div>
+    <div class="readout"><span class="k">Sun azimuth</span><span class="v mono" id="ro-az">--</span></div>
+    <div class="readout"><span class="k">Next sunrise</span><span class="v mono" id="ro-rise">--</span></div>
+    <div class="readout"><span class="k">Next sunset</span><span class="v mono" id="ro-set">--</span></div>
+    <div class="readout"><span class="k">Looking</span><span class="v mono" id="ro-look">--</span></div>
+  </div>
+  <div id="compass"></div>
+  <p class="surface-hint">Drag to look around &middot; scroll to zoom &middot; <kbd>Esc</kbd> to leave</p>
+</div>
+
+<!-- ===================== drop-a-person gizmo ===================== -->
+<div id="gizmo-dock">
+  <span class="gizmo-hint">Drag onto a world</span>
+</div>
+
+<!-- ===================== keyboard help ===================== -->
+<div id="help" hidden>
+  <div class="help-card">
+    <header>
+      <h2>Keyboard</h2>
+      <button id="help-close" class="collapse" title="Close">&times;</button>
+    </header>
+    <div class="help-grid">
+      <h3>Time</h3><span></span>
+      <kbd>Space</kbd><span>Play / pause</span>
+      <kbd>&larr;</kbd> <span>Step back one unit of the current rate</span>
+      <kbd>&rarr;</kbd> <span>Step forward one unit</span>
+      <kbd>Shift</kbd> + <kbd>&larr;</kbd><span>Step by ten units</span>
+      <kbd>&uarr;</kbd> <span>Faster</span>
+      <kbd>&darr;</kbd> <span>Slower</span>
+      <kbd>R</kbd><span>Reverse direction</span>
+      <kbd>N</kbd><span>Jump to now</span>
+      <kbd>[</kbd> / <kbd>]</kbd><span>Narrow / widen the slider span</span>
+
+      <h3>View</h3><span></span>
+      <kbd>L</kbd><span>Labels</span>
+      <kbd>O</kbd><span>Orbit paths</span>
+      <kbd>Esc</kbd><span>Leave the surface</span>
+      <kbd>?</kbd><span>This panel</span>
+    </div>
+  </div>
+</div>
+
+<div id="fade"></div>
+<div id="toast" hidden></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
