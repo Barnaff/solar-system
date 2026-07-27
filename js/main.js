@@ -381,7 +381,10 @@ class App {
       moved = 0;
       lastX = e.clientX;
       lastY = e.clientY;
-      if (this.surface.active) canvas.setPointerCapture(e.pointerId);
+      // Always capture. Without it, releasing the button off-canvas never
+      // delivers pointerup here, so `dragging` sticks and every later move
+      // keeps turning the view with no button held.
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* not captured */ }
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!dragging) return;
@@ -402,6 +405,7 @@ class App {
       dragging = false;
       if (moved < 5) this._pickAt(e.clientX, e.clientY);
     });
+    canvas.addEventListener('pointercancel', () => { dragging = false; });
     canvas.addEventListener('wheel', (e) => {
       if (!this.surface.active) return;
       e.preventDefault();

@@ -213,9 +213,15 @@ export class SurfaceView {
     this.skyLight.visible = false;
     this.scene.add(this.skyLight);
 
+    this._materials = new Map();
     this._up = new THREE.Vector3();
     this._north = new THREE.Vector3();
     this._east = new THREE.Vector3();
+    this._basisMatrix = new THREE.Matrix4();
+    this._lookDir = new THREE.Vector3();
+    this._axisX = new THREE.Vector3();
+    this._axisY = new THREE.Vector3();
+    this._axisZ = new THREE.Vector3();
   }
 
   /** @param {object} def catalogue entry for the body being stood on */
@@ -243,19 +249,18 @@ export class SurfaceView {
     this._rebuild();
   }
 
-  _rebuild() {
-    const def = this.def;
-    if (this.ground) {
-      this.ground.geometry.dispose();
-      this.group.remove(this.ground);
-    }
-    const psiH = horizonAngle(def.radius, this.eyeHeight);
-    // Three times the horizon angle leaves headroom without wasting most of
-    // the rings on ground that curvature hides anyway.
-    const geo = buildGroundPatch(
-      this.lat, this.lon, def.radius, def.flattening || 0,
-      Math.min(Math.PI / 2, psiH * 3)
-    );
+  /**
+   * Ground material for a body, built once and kept.
+   *
+   * The material does not depend on where you are standing, only on which
+   * world it is, so rebuilding it on every move leaked a material, its shader
+   * program and its texture bindings each time. There are 17 landable bodies,
+   * so this map is bounded.
+   */
+  _groundMaterial(def) {
+    const cached = this._materials.get(def.key);
+    if (cached) return cached;
+
     const cloud = CLOUD_TOP.has(def.key);
     const material = new THREE.MeshStandardMaterial({
       map: tex(def.texture),
@@ -266,7 +271,25 @@ export class SurfaceView {
     // Detail is keyed to what the eye can resolve from this viewpoint: tens of
     // metres standing on rock, tens of kilometres floating over a cloud deck.
     addGroundDetail(material, cloud ? this.eyeHeight * 18000 : 30);
-    this.ground = new THREE.Mesh(geo, material);
+    this._materials.set(def.key, material);
+    return material;
+  }
+
+  _rebuild() {
+    const def = this.def;
+    if (this.ground) {
+      this.ground.geometry.dispose();
+      this.group.remove(this.ground);
+      this.ground = null;
+    }
+    const psiH = horizonAngle(def.radius, this.eyeHeight);
+    // Three times the horizon angle leaves headroom without wasting most of
+    // the rings on ground that curvature hides anyway.
+    const geo = buildGroundPatch(
+      this.lat, this.lon, def.radius, def.flattening || 0,
+      Math.min(Math.PI / 2, psiH * 3)
+    );
+    this.ground = new THREE.Mesh(geo, this._groundMaterial(def));
     this.ground.frustumCulled = false;
     this.group.add(this.ground);
 
@@ -309,13 +332,14 @@ export class SurfaceView {
     world.setOrigin(observer);
 
     // Ground patch: rotate by the body basis, translate so the observer's
-    // surface point lands exactly under the camera.
-    const mat = new THREE.Matrix4().makeBasis(
-      new THREE.Vector3(basis.x.x, basis.x.y, basis.x.z),
-      new THREE.Vector3(basis.y.x, basis.y.y, basis.y.z),
-      new THREE.Vector3(basis.z.x, basis.z.y, basis.z.z)
+    // surface point lands exactly under the camera. Scratch objects are reused
+    // because this runs every frame.
+    this._basisMatrix.makeBasis(
+      this._axisX.set(basis.x.x, basis.x.y, basis.x.z),
+      this._axisY.set(basis.y.x, basis.y.y, basis.y.z),
+      this._axisZ.set(basis.z.x, basis.z.y, basis.z.z)
     );
-    this.group.quaternion.setFromRotationMatrix(mat);
+    this.group.quaternion.setFromRotationMatrix(this._basisMatrix);
     this.group.position.set(
       (surfacePoint.x - observer.x) * KM,
       (surfacePoint.y - observer.y) * KM,
@@ -331,11 +355,11 @@ export class SurfaceView {
 
     this.camera.position.set(0, 0, 0);
     this.camera.up.copy(this._up);
-    const dir = new THREE.Vector3()
+    this._lookDir.set(0, 0, 0)
       .addScaledVector(this._north, Math.cos(this.yaw) * Math.cos(this.pitch))
       .addScaledVector(this._east, Math.sin(this.yaw) * Math.cos(this.pitch))
       .addScaledVector(this._up, Math.sin(this.pitch));
-    this.camera.lookAt(dir);
+    this.camera.lookAt(this._lookDir);
 
     // Sky dome follows the camera; the Sun direction drives the scattering.
     const sunDir = normalize(sub(state.pos.sun, observer));

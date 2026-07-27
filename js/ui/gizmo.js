@@ -61,20 +61,31 @@ export class DropGizmo {
   }
 
   _start(e) {
+    // A second pointerdown mid-drag would install a second set of listeners.
+    if (this.dragging) return;
     e.preventDefault();
     this.dragging = true;
     this.figure.classList.add('held');
     this.ghost.hidden = false;
     document.body.classList.add('gizmo-dragging');
 
-    const move = (ev) => this._move(ev);
-    const up = (ev) => {
-      removeEventListener('pointermove', move);
-      removeEventListener('pointerup', up);
-      this._end(ev);
-    };
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', up);
+    // Capturing guarantees the pointer events keep coming back here even if
+    // the cursor leaves the window, so the drag always gets an end event. The
+    // AbortController then tears every listener down in one go: leaking these
+    // means a raycast per body on every future mouse move, and it compounds
+    // with each drag until the whole page crawls.
+    try { this.figure.setPointerCapture(e.pointerId); } catch { /* not captured */ }
+    this._abort = new AbortController();
+    const { signal } = this._abort;
+    const end = (ev) => this._end(ev);
+    addEventListener('pointermove', (ev) => this._move(ev), { signal });
+    addEventListener('pointerup', end, { signal });
+    addEventListener('pointercancel', end, { signal });
+    // Losing capture without a pointerup (alt-tab, a system gesture) still has
+    // to close the drag out.
+    this.figure.addEventListener('lostpointercapture', end, { signal });
+    addEventListener('blur', end, { signal });
+
     this._move(e);
   }
 
@@ -108,6 +119,8 @@ export class DropGizmo {
   _end() {
     if (!this.dragging) return;
     this.dragging = false;
+    this._abort?.abort();
+    this._abort = null;
     this.figure.classList.remove('held');
     this.ghost.hidden = true;
     this.ghost.classList.remove('over');
